@@ -17,3 +17,15 @@ an IIS deployment script and a Windows Service that monitors the site.
 ## How to run
 
 _Coming in each step._
+
+## Repository conventions
+
+| File | Why it exists |
+|---|---|
+| `global.json` | Pins the .NET 10 SDK (LTS) so local builds and CI use the same version |
+| `.gitattributes` | Normalizes line endings (Windows CRLF vs Linux LF runners) |
+| `.editorconfig` | Consistent code style for any editor and the compiler |
+| `Directory.Build.props` | Shared build rules for all projects: nullable checks, warnings as errors |
+| `EurofinsTakeHome.sln` | Groups all projects; classic `.sln` format for compatibility with older Visual Studio |
+
+Workflow: GitHub Flow (short-lived branches, pull requests, squash merge) and Conventional Commits.

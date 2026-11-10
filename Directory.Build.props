@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <!-- Compiler warns when a value might be null (like TypeScript strictNullChecks) -->
+    <Nullable>enable</Nullable>
+    <!-- Common namespaces (System, System.IO, System.Linq...) imported automatically -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Any warning fails the build, so the CI fails early -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>
