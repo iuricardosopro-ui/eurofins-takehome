@@ -16,7 +16,12 @@ an IIS deployment script and a Windows Service that monitors the site.
 
 ## How to run
 
-_Coming in each step._
+### Run locally
+
+```powershell
+dotnet run --project src/HelloWorld --launch-profile http
+curl.exe http://localhost:5176/   # Hello World!
+```
 
 ## Repository conventions
 
