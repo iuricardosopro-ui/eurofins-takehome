@@ -42,3 +42,20 @@ The runner is `windows-latest`, the same OS as the IIS target.
 | `EurofinsTakeHome.sln` | Groups all projects; classic `.sln` format for compatibility with older Visual Studio |
 
 Workflow: GitHub Flow (short-lived branches, pull requests, squash merge) and Conventional Commits.
+
+### Deploy to IIS (Step 2)
+
+Run in an **elevated** PowerShell (Run as Administrator), with IIS and the ASP.NET Core Hosting Bundle installed:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+$appPoolPwd = Read-Host -AsSecureString "Password for svc_helloworld"
+.\deploy\iis\Deploy-IIS.ps1 -ZipPath C:\temp\HelloWorld-<version>.zip -AppPoolPassword $appPoolPwd
+```
+
+The script is idempotent (safe to run again; it also redeploys the zip) and creates:
+local user `svc_helloworld` in group `HelloWorldUsers` (read/execute on the site folder),
+app pool `HelloWorldPool` (No Managed Code, runs as that user),
+site `HelloWorldSite` on http `8080` and https `8443` (self-signed certificate, lab only),
+site logs in `C:\inetpub\logs\HelloWorldSite`, and the application `/helloworld`.
+It ends with a smoke test: `http://localhost:8080/helloworld` must return `200 Hello World!`.
