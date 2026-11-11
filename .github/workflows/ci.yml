@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]   # validate every PR before merge
+  push:
+    branches: [main]   # build main after each merge
+  workflow_dispatch:   # manual "Run workflow" button
+
+permissions:
+  contents: read     # least privilege: the job can only read the repo
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true  # a new push cancels the older run of the same branch
+
+jobs:
+  build:
+    name: Build and package
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET (version from global.json)
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Show .NET version
+        run: dotnet --version
