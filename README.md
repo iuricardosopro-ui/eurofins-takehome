@@ -23,6 +23,14 @@ dotnet run --project src/HelloWorld --launch-profile http
 curl.exe http://localhost:5176/   # Hello World!
 ```
 
+### CI pipeline
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request to `main` and on every push to `main`:
+restore → build (Release) → publish → zip → upload artifact.
+
+The artifact is named `HelloWorld-1.0.<run number>-<short sha>.zip` and is available for 7 days in the run's **Artifacts** section.
+The runner is `windows-latest`, the same OS as the IIS target.
+
 ## Repository conventions
 
 | File | Why it exists |

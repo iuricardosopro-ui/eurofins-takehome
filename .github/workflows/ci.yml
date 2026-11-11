@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]   # validate every PR before merge
+  push:
+    branches: [main]   # build main after each merge
+  workflow_dispatch:   # manual "Run workflow" button
+
+permissions:
+  contents: read     # least privilege: the job can only read the repo
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true  # a new push cancels the older run of the same branch
+
+jobs:
+  build:
+    name: Build and package
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET (version from global.json)
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Show .NET version
+        run: dotnet --version
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish HelloWorld
+        run: dotnet publish src/HelloWorld/HelloWorld.csproj --configuration Release --no-build --output publish/HelloWorld
+
+      - name: Create zip package
+        run: |
+          $version = "1.0.${{ github.run_number }}"
+          $sha = "${{ github.event.pull_request.head.sha || github.sha }}".Substring(0, 7)
+          $zipName = "HelloWorld-$version-$sha.zip"
+          Compress-Archive -Path publish/HelloWorld/* -DestinationPath $zipName
+          "ZIP_NAME=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ env.ZIP_NAME }}
+          archive: false
+          retention-days: 7
