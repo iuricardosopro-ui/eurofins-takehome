@@ -59,3 +59,18 @@ app pool `HelloWorldPool` (No Managed Code, runs as that user),
 site `HelloWorldSite` on http `8080` and https `8443` (self-signed certificate, lab only),
 site logs in `C:\inetpub\logs\HelloWorldSite`, and the application `/helloworld`.
 It ends with a smoke test: `http://localhost:8080/helloworld` must return `200 Hello World!`.
+
+### Status monitor (Step 3)
+
+`src/StatusMonitor` is a .NET Worker Service that can run from the IDE (F5) or from the terminal:
+
+```powershell
+dotnet run --project src/StatusMonitor
+```
+
+Every `StatusMonitor:IntervalSeconds` (60, in `appsettings.json`) it calls `StatusMonitor:Url`
+(`http://localhost:8080/helloworld`) and appends `<timestamp> <url> <code> <message>` to `status.log`,
+next to the executable. If the status is not 200 (a connection error is logged as code `0`),
+it stops with exit code 1, so Windows service recovery can restart it (Step 4).
+
+For a quick test, override the interval: `dotnet run --project src/StatusMonitor -- --StatusMonitor:IntervalSeconds=5`

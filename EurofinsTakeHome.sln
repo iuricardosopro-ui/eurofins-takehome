@@ -7,6 +7,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HelloWorld", "src\HelloWorld\HelloWorld.csproj", "{B4A60BC6-898E-4EE6-844B-B9F4E0E9AC66}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StatusMonitor", "src\StatusMonitor\StatusMonitor.csproj", "{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,11 +31,24 @@ Global
 		{B4A60BC6-898E-4EE6-844B-B9F4E0E9AC66}.Release|x64.Build.0 = Release|Any CPU
 		{B4A60BC6-898E-4EE6-844B-B9F4E0E9AC66}.Release|x86.ActiveCfg = Release|Any CPU
 		{B4A60BC6-898E-4EE6-844B-B9F4E0E9AC66}.Release|x86.Build.0 = Release|Any CPU
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}.Debug|x64.Build.0 = Debug|Any CPU
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}.Debug|x86.Build.0 = Debug|Any CPU
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}.Release|x64.ActiveCfg = Release|Any CPU
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}.Release|x64.Build.0 = Release|Any CPU
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}.Release|x86.ActiveCfg = Release|Any CPU
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{B4A60BC6-898E-4EE6-844B-B9F4E0E9AC66} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{1BFA9EC2-3148-49C5-B9CE-08538427CFDA} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal
