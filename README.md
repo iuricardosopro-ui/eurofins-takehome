@@ -74,3 +74,22 @@ next to the executable. If the status is not 200 (a connection error is logged a
 it stops with exit code 1, so Windows service recovery can restart it (Step 4).
 
 For a quick test, override the interval: `dotnet run --project src/StatusMonitor -- --StatusMonitor:IntervalSeconds=5`
+
+### Install the status monitor as a Windows Service (Step 4)
+
+Run in an **elevated** PowerShell:
+
+```powershell
+dotnet publish src/StatusMonitor -c Release -o C:\temp\StatusMonitor-publish
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+$svcPwd = Read-Host -AsSecureString "Password for svc_statusmonitor"
+.\deploy\service\Install-StatusMonitor.ps1 -PublishPath C:\temp\StatusMonitor-publish -ServicePassword $svcPwd
+```
+
+The script is idempotent. It creates the local account `svc_statusmonitor` with the "Log on as a service" right,
+copies the files to `C:\Services\StatusMonitor` (the account can write `status.log` there),
+creates the service `StatusMonitor` running as that account with automatic start,
+and sets recovery to restart the service 300 seconds after each failure.
+
+Verified cycle: site stopped → `503` logged and the service exits with code 1 →
+Windows event 7031 ("terminated unexpectedly... restart in 300000 ms") → service restarted 300 s later → `200 OK`.
