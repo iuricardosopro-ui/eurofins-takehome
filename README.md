@@ -31,6 +31,27 @@ restore → build (Release) → publish → zip → upload artifact.
 The artifact is named `HelloWorld-1.0.<run number>-<short sha>.zip` and is available for 7 days in the run's **Artifacts** section.
 The runner is `windows-latest`, the same OS as the IIS target.
 
+## Repository structure
+
+```
+.
+├── .github/
+│   ├── workflows/ci.yml                     # CI: zip package (Windows job) + Docker image (Linux job)
+│   └── pull_request_template.md
+├── src/
+│   ├── HelloWorld/                          # ASP.NET Core web app (Step 1)
+│   └── StatusMonitor/                       # Worker Service, runs as a Windows Service (Step 3)
+├── deploy/
+│   ├── iis/Deploy-IIS.ps1                   # IIS deployment (Step 2)
+│   ├── service/Install-StatusMonitor.ps1    # Windows Service installation + recovery (Step 4)
+│   └── docker/Deploy-Docker.ps1             # Docker deployment (Step 6)
+├── Dockerfile                               # Multi-stage image (Step 5)
+├── .dockerignore
+├── EurofinsTakeHome.sln                     # Opens both projects in Visual Studio / VS Code
+├── global.json, Directory.Build.props       # Pinned SDK, shared build rules
+└── .editorconfig, .gitattributes, .gitignore
+```
+
 ## Repository conventions
 
 | File | Why it exists |
@@ -93,3 +114,20 @@ and sets recovery to restart the service 300 seconds after each failure.
 
 Verified cycle: site stopped → `503` logged and the service exits with code 1 →
 Windows event 7031 ("terminated unexpectedly... restart in 300000 ms") → service restarted 300 s later → `200 OK`.
+
+### Docker image and deployment (Steps 5 and 6)
+
+The CI has a second job (`ubuntu-latest`) that builds the multi-stage `Dockerfile`
+(SDK build stage → ASP.NET runtime stage, non-root `app` user, port 8080).
+On `main` it pushes `ghcr.io/iuricardosopro-ui/helloworld` with the tags `1.0.<run>` (same version as the zip),
+`sha-<commit>` and `latest`, authenticating with the workflow's `GITHUB_TOKEN`. The zip job is unchanged.
+
+Deploy to a local Docker Engine (no admin rights needed):
+
+```powershell
+.\deploy\docker\Deploy-Docker.ps1                # latest
+.\deploy\docker\Deploy-Docker.ps1 -Tag 1.0.12    # a specific version (rollback)
+```
+
+The script is idempotent: it pulls the image, replaces the old container,
+runs it with `--restart unless-stopped` on port `8081`, and waits until `http://localhost:8081/` returns 200.
