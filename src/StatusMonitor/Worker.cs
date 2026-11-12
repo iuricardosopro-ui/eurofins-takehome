@@ -1,6 +1,9 @@
 namespace StatusMonitor;
 
-public class Worker(ILogger<Worker> logger, IConfiguration configuration) : BackgroundService
+public class Worker(
+    ILogger<Worker> logger,
+    IConfiguration configuration,
+    IHostApplicationLifetime lifetime) : BackgroundService
 {
     // One HttpClient for the whole life of the service, with an explicit timeout
     private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
@@ -24,6 +27,15 @@ public class Worker(ILogger<Worker> logger, IConfiguration configuration) : Back
             var line = $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz} {url} {code} {message}";
             await File.AppendAllTextAsync(_logFile, line + Environment.NewLine, stoppingToken);
             logger.LogInformation("{Line}", line);
+            if (code != 200)
+            {
+                // Assignment: stop when the status is not 200 OK.
+                // Exit code 1 = failure, so Windows recovery (Step 4) can restart the service.
+                logger.LogError("Status {Code} is not 200, stopping the service", code);
+                Environment.ExitCode = 1;
+                lifetime.StopApplication();
+                return;
+            }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
