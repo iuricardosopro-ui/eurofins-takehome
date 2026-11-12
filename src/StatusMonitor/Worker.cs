@@ -1,9 +1,6 @@
 namespace StatusMonitor;
 
-public class Worker(
-    ILogger<Worker> logger,
-    IConfiguration configuration,
-    IHostApplicationLifetime lifetime) : BackgroundService
+public class Worker(ILogger<Worker> logger, IConfiguration configuration) : BackgroundService
 {
     // One HttpClient for the whole life of the service, with an explicit timeout
     private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
@@ -30,11 +27,10 @@ public class Worker(
             if (code != 200)
             {
                 // Assignment: stop when the status is not 200 OK.
-                // Exit code 1 = failure, so Windows recovery (Step 4) can restart the service.
+                // Exit the process with code 1 (failure). A clean stop would look like
+                // a normal shutdown to Windows and the recovery action (Step 4) would not run.
                 logger.LogError("Status {Code} is not 200, stopping the service", code);
-                Environment.ExitCode = 1;
-                lifetime.StopApplication();
-                return;
+                Environment.Exit(1);
             }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
