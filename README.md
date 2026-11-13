@@ -1,43 +1,123 @@
 # Eurofins DevOps Take-Home – HelloWorld
 
-Spike of a customer management web app on .NET 10, with a CI pipeline,
-an IIS deployment script and a Windows Service that monitors the site.
+.NET 10 web app with a CI pipeline (zip package and Docker image), an IIS deployment script, a Windows Service to monitor the site, and a Docker deployment script.
 
 ## Assignment coverage
 
 | Step | Description | Status | Location |
-|---|---|---|---|
-| 1 | Build + CI pipeline (zip package) | Planned | `.github/workflows/` |
-| 2 | IIS deployment script | Planned | `deploy/iis/` |
-| 3 | Status monitor (Windows Service) | Planned | `src/StatusMonitor/` |
-| 4 | Windows Service deployment script | Planned | `deploy/service/` |
-| 5 | Docker image (optional) | Planned | `Dockerfile` |
-| 6 | Docker deployment (optional) | Planned | `deploy/docker/` |
+| --- | --- | --- | --- |
+| 1 | Build + CI pipeline (zip package) | Done | `src/HelloWorld`, `.github/workflows/ci.yml` |
+| 2 | IIS deployment script | Done | `deploy/iis/Deploy-IIS.ps1` |
+| 3 | Status monitor (Windows Service) | Done | `src/StatusMonitor` |
+| 4 | Windows Service deployment script | Done | `deploy/service/Install-StatusMonitor.ps1` |
+| 5 | Docker image (optional) | Done | `Dockerfile`, `ci.yml` (`docker` job) |
+| 6 | Docker deployment (optional) | Done | `deploy/docker/Deploy-Docker.ps1` |
+| — | Customer form + grid (brief) | Not implemented | Out of scope (focused on the 6 DevOps steps) |
 
-## How to run
+## Architecture
 
-### Run locally
+```
+PR / push to main ──► GitHub Actions (ci.yml)
+                        ├─ windows-latest: restore → build → publish → HelloWorld-1.0.<run>-<sha>.zip (artifact)
+                        └─ ubuntu-latest:  docker build → push ghcr.io/iuricardosopro-ui/helloworld (main only)
+
+zip ──► Deploy-IIS.ps1 ──► IIS  HelloWorldSite (http :8080, https :8443)
+                                 └─ /helloworld → app pool HelloWorldPool (No Managed Code, user svc_helloworld)
+                                        ▲
+                                        │ GET every 60 s
+StatusMonitor (Windows Service, user svc_statusmonitor) ──► status.log next to the exe
+        status ≠ 200 → exits with code 1 → Windows recovery restarts it after 300 s
+
+image ──► Deploy-Docker.ps1 ──► Docker Engine  container helloworld (:8081 → 8080)
+
+```
+
+## Stack and prerequisites
+
+* **Runtime and SDK:** C# on .NET 10 (LTS) — SDK `10.0.404`, runtime `10.0.15` (Minimal API and Worker Service).
+* **Web server:** IIS 10 with the ASP.NET Core Hosting Bundle `10.0.15`.
+* **Automation and CI:** PowerShell 5.1, GitHub Actions, Docker, and GitHub Container Registry.
+
+Before running the scripts locally, you need:
+
+* Windows 10/11 or Windows Server with IIS enabled (including *IIS Management Scripting Tools*), and the ASP.NET Core Hosting Bundle installed **after** IIS.
+* .NET 10 SDK to build locally.
+* PowerShell running **as Administrator** for Steps 2 and 4.
+* Docker (Desktop or Engine, Linux containers) for Steps 5 and 6.
+
+## Running and deploying
+
+### Local app (Step 1)
 
 ```powershell
 dotnet run --project src/HelloWorld --launch-profile http
 curl.exe http://localhost:5176/   # Hello World!
+
 ```
 
-### CI pipeline
+### CI pipeline (Steps 1 and 5)
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request to `main` and on every push to `main`:
-restore → build (Release) → publish → zip → upload artifact.
+`.github/workflows/ci.yml` runs on every PR and push to `main`:
 
-The artifact is named `HelloWorld-1.0.<run number>-<short sha>.zip` and is available for 7 days in the run's **Artifacts** section.
-The runner is `windows-latest`, the same OS as the IIS target.
+* **Zip job (`windows-latest`):** runs restore, Release build, publish, and zip, saving `HelloWorld-1.0.<run>-<short sha>.zip` as an artifact for 7 days.
+* **Docker job (`ubuntu-latest`):** builds the image on every run to validate the Dockerfile. On pushes to `main`, it logs in with `GITHUB_TOKEN` and pushes `ghcr.io/iuricardosopro-ui/helloworld` with the tags `1.0.<run>`, `sha-<commit>`, and `latest`.
 
-## Repository structure
+### Deploy to IIS (Step 2)
+
+Download the `.zip` artifact from the latest `main` workflow run and run this in PowerShell as Administrator:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+$appPoolPwd = Read-Host -AsSecureString "Password for svc_helloworld"
+.\deploy\iis\Deploy-IIS.ps1 -ZipPath C:\temp\HelloWorld-<version>.zip -AppPoolPassword $appPoolPwd
+
+```
+
+The script is idempotent, so you can run it again to redeploy. It creates the local user `svc_helloworld` in the `HelloWorldUsers` group, sets up `HelloWorldPool` and `HelloWorldSite` (HTTP `8080`, HTTPS `8443`, logs in `C:\inetpub\logs\HelloWorldSite`), and adds the `/helloworld` application. At the end, it checks `http://localhost:8080/helloworld` and fails if it does not return `200 Hello World!`.
+
+### Status monitor (Step 3)
+
+```powershell
+dotnet run --project src/StatusMonitor
+
+```
+
+By default, it checks `http://localhost:8080/helloworld` every 60 seconds (`StatusMonitor:Url` and `StatusMonitor:IntervalSeconds` in `appsettings.json`) and writes `<timestamp> <url> <code> <message>` to `status.log` next to the executable. Any status other than `200`—including connection errors, logged as code `0`—makes the process exit with `Environment.Exit(1)`. To test faster locally: `dotnet run --project src/StatusMonitor -- --StatusMonitor:IntervalSeconds=5`.
+
+### Install as a Windows Service (Step 4)
+
+In PowerShell as Administrator:
+
+```powershell
+dotnet publish src/StatusMonitor -c Release -o C:\temp\StatusMonitor-publish
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+$svcPwd = Read-Host -AsSecureString "Password for svc_statusmonitor"
+.\deploy\service\Install-StatusMonitor.ps1 -PublishPath C:\temp\StatusMonitor-publish -ServicePassword $svcPwd
+
+```
+
+Also idempotent: it creates the `svc_statusmonitor` account with the *Log on as a service* permission, copies the files to `C:\Services\StatusMonitor`, creates the `StatusMonitor` service with automatic start, and configures Windows recovery to restart it 300 seconds after a failure.
+
+Tested cycle: stop the IIS site → the monitor logs `503` and exits with code `1` → Windows logs System Event `7031` (*"terminated unexpectedly... restart in 300000 ms"*) → the service starts again 300 seconds later and logs `200 OK`.
+
+### Deploy the Docker image (Step 6)
+
+```powershell
+.\deploy\docker\Deploy-Docker.ps1                 # pulls latest
+.\deploy\docker\Deploy-Docker.ps1 -Tag 1.0.12     # specific tag (rollback)
+
+```
+
+Also idempotent: pulls the image, replaces the old container, starts the new one with `--restart unless-stopped` on port `8081` (`8081 -> 8080`), and waits until `http://localhost:8081/` returns `200`.
+
+## Repository layout and conventions
 
 ```
 .
 ├── .github/
 │   ├── workflows/ci.yml                     # CI: zip package (Windows job) + Docker image (Linux job)
 │   └── pull_request_template.md
+├── docs/                                    # Design decisions and evidence screenshots
 ├── src/
 │   ├── HelloWorld/                          # ASP.NET Core web app (Step 1)
 │   └── StatusMonitor/                       # Worker Service, runs as a Windows Service (Step 3)
@@ -50,84 +130,37 @@ The runner is `windows-latest`, the same OS as the IIS target.
 ├── EurofinsTakeHome.sln                     # Opens both projects in Visual Studio / VS Code
 ├── global.json, Directory.Build.props       # Pinned SDK, shared build rules
 └── .editorconfig, .gitattributes, .gitignore
+
 ```
 
-## Repository conventions
-
-| File | Why it exists |
-|---|---|
+| File | Purpose |
+| --- | --- |
 | `global.json` | Pins the .NET 10 SDK (LTS) so local builds and CI use the same version |
-| `.gitattributes` | Normalizes line endings (Windows CRLF vs Linux LF runners) |
-| `.editorconfig` | Consistent code style for any editor and the compiler |
-| `Directory.Build.props` | Shared build rules for all projects: nullable checks, warnings as errors |
-| `EurofinsTakeHome.sln` | Groups all projects; classic `.sln` format for compatibility with older Visual Studio |
+| `.gitattributes` | Keeps line endings consistent across Windows (CRLF) and Linux runners (LF) |
+| `.editorconfig` | Keeps code formatting consistent across editors and the compiler |
+| `Directory.Build.props` | Centralizes nullable checks and `TreatWarningsAsErrors` across projects |
+| `EurofinsTakeHome.sln` | Classic `.sln` format so older Visual Studio versions can open it |
 
-Workflow: GitHub Flow (short-lived branches, pull requests, squash merge) and Conventional Commits.
+Git workflow: GitHub Flow (short-lived branches, pull requests, squash merges) and Conventional Commits.
 
-### Deploy to IIS (Step 2)
+## Further docs and evidence
 
-Run in an **elevated** PowerShell (Run as Administrator), with IIS and the ASP.NET Core Hosting Bundle installed:
+* [docs/decisions.md](docs/decisions.md) — technical choices and trade-offs.
+* [docs/images](docs/images) — screenshots: the green CI run on `main` with the zip artifact (Step 1), the IIS site with its http/https bindings (Step 2), and the Windows Service recovery with System event `7031` and `status.log` showing `200 → 503 → 200` (Step 4).
 
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-$appPoolPwd = Read-Host -AsSecureString "Password for svc_helloworld"
-.\deploy\iis\Deploy-IIS.ps1 -ZipPath C:\temp\HelloWorld-<version>.zip -AppPoolPassword $appPoolPwd
-```
+## Troubleshooting
 
-The script is idempotent (safe to run again; it also redeploys the zip) and creates:
-local user `svc_helloworld` in group `HelloWorldUsers` (read/execute on the site folder),
-app pool `HelloWorldPool` (No Managed Code, runs as that user),
-site `HelloWorldSite` on http `8080` and https `8443` (self-signed certificate, lab only),
-site logs in `C:\inetpub\logs\HelloWorldSite`, and the application `/helloworld`.
-It ends with a smoke test: `http://localhost:8080/helloworld` must return `200 Hello World!`.
+| Symptom | Cause / fix |
+| --- | --- |
+| `sc` does nothing useful in PowerShell | `sc` is an alias for `Set-Content` in PowerShell; use `sc.exe` |
+| `curl` behaves differently | `curl` is an alias for `Invoke-WebRequest`; use `curl.exe` |
+| IIS returns `500.19` | ASP.NET Core Hosting Bundle is missing, or was installed before IIS (repair it and run `iisreset`) |
+| IIS returns `503` | App pool stopped or failed to log on due to a wrong password |
+| Service fails with error `1069` | Account does not have *Log on as a service* permission or password is wrong |
+| Recovery does not restart the service | Process exited with `0`; the monitor must exit with a non-zero code |
+| Redeploy fails with "access denied" on `HelloWorld.dll` | The `w3wp.exe` worker process still holds the file; the script stops the pool and waits for the process to exit |
 
-### Status monitor (Step 3)
+## About this submission
 
-`src/StatusMonitor` is a .NET Worker Service that can run from the IDE (F5) or from the terminal:
-
-```powershell
-dotnet run --project src/StatusMonitor
-```
-
-Every `StatusMonitor:IntervalSeconds` (60, in `appsettings.json`) it calls `StatusMonitor:Url`
-(`http://localhost:8080/helloworld`) and appends `<timestamp> <url> <code> <message>` to `status.log`,
-next to the executable. If the status is not 200 (a connection error is logged as code `0`),
-it stops with exit code 1, so Windows service recovery can restart it (Step 4).
-
-For a quick test, override the interval: `dotnet run --project src/StatusMonitor -- --StatusMonitor:IntervalSeconds=5`
-
-### Install the status monitor as a Windows Service (Step 4)
-
-Run in an **elevated** PowerShell:
-
-```powershell
-dotnet publish src/StatusMonitor -c Release -o C:\temp\StatusMonitor-publish
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-$svcPwd = Read-Host -AsSecureString "Password for svc_statusmonitor"
-.\deploy\service\Install-StatusMonitor.ps1 -PublishPath C:\temp\StatusMonitor-publish -ServicePassword $svcPwd
-```
-
-The script is idempotent. It creates the local account `svc_statusmonitor` with the "Log on as a service" right,
-copies the files to `C:\Services\StatusMonitor` (the account can write `status.log` there),
-creates the service `StatusMonitor` running as that account with automatic start,
-and sets recovery to restart the service 300 seconds after each failure.
-
-Verified cycle: site stopped → `503` logged and the service exits with code 1 →
-Windows event 7031 ("terminated unexpectedly... restart in 300000 ms") → service restarted 300 s later → `200 OK`.
-
-### Docker image and deployment (Steps 5 and 6)
-
-The CI has a second job (`ubuntu-latest`) that builds the multi-stage `Dockerfile`
-(SDK build stage → ASP.NET runtime stage, non-root `app` user, port 8080).
-On `main` it pushes `ghcr.io/iuricardosopro-ui/helloworld` with the tags `1.0.<run>` (same version as the zip),
-`sha-<commit>` and `latest`, authenticating with the workflow's `GITHUB_TOKEN`. The zip job is unchanged.
-
-Deploy to a local Docker Engine (no admin rights needed):
-
-```powershell
-.\deploy\docker\Deploy-Docker.ps1                # latest
-.\deploy\docker\Deploy-Docker.ps1 -Tag 1.0.12    # a specific version (rollback)
-```
-
-The script is idempotent: it pulls the image, replaces the old container,
-runs it with `--restart unless-stopped` on port `8081`, and waits until `http://localhost:8081/` returns 200.
+My daily work is focused on cloud (AWS, Terraform, Docker), so I had not worked with .NET, IIS, or Windows Services before this assignment. Since I was balancing this with my full-time job, I treated it as a hands-on learning exercise and used an AI assistant as a tutor: building and studying step by step, typing, running, and testing every part myself.
+Testing locally brought up real issues that I had to debug and fix: redeploys failing because the IIS worker process (w3wp.exe) kept the DLL locked, Windows Service recovery not triggering on a graceful stop (fixed by exiting with a non-zero code), and secedit returning an error on a localized Windows installation. 
